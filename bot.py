@@ -85,7 +85,7 @@ class Bot(discord.Client):
     def __init__(self):
         super().__init__()
         self.config = Config('settings.ini')
-        self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'remove': -1, 'join': 1, 'leave': 1, 'players': 1, 'games': 0, 'scrub': -1}
+        self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'remove': -1, 'join': 1, 'leave': 1, 'players': 1, 'games': 0}
         self.channel = None
         self.server = None
         self.num_roles = len(self.config.roles)
