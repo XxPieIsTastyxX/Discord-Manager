@@ -79,21 +79,25 @@ class Config:
         config = configparser.ConfigParser(interpolation=None)
         config.read(cfg, encoding='utf-8')
         self.token = config.get('Essential','Token')
-        self.roles = config.get('Essential','Roles').split(' ')
+        self.role_strings = config.get('Essential','Roles').split(' ')
         self.prefix = config.get('Optional','Prefix',fallback='!')
-        self.channel = config.get('Essential','MainChannel',fallback=None)
-        self.invites = config.get('Optional','GameChannel',fallback=self.channel)
+        self.channel = config.getint('Essential','MainChannel',fallback=None)
+        self.invites = config.getint('Optional','GameChannel',fallback=self.channel)
         self.banned_strings = config.get('Optional','Strings',fallback='')
         self.games = file_read('gameslist.txt')
         
         self.banned_strings = self.banned_strings.split(' ')
+        
+        self.roles = []
+        for rs in self.role_strings:
+            self.roles.append(int(rs))
         
 
 class Bot(discord.Client):
     def __init__(self):
         super().__init__(max_messages=500)
         self.config = Config('settings.ini')
-        self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'remove': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
+        self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'remove': -1, 'reload': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
         self.channel = None
         self.invite_channel = None
         self.server = None
@@ -103,7 +107,7 @@ class Bot(discord.Client):
         for g in self.config.games:
             self.gameslists[g] = file_read('games/%s.txt' % g)
         
-        
+    
     async def on_ready(self):
         print('------')
         print('Logged in as')
@@ -111,7 +115,7 @@ class Bot(discord.Client):
         print(self.user.id)
         self.channel = self.get_channel(self.config.channel)
         self.invite_channel = self.get_channel(self.config.invites)
-        for s in self.servers:
+        for s in self.guilds:
             self.server = s
             break
         print('Listening on')
@@ -147,7 +151,7 @@ class Bot(discord.Client):
             raise GameError
     
     def level(self, user):
-        highest = 0;
+        highest = 0
         for r in user.roles:
             try:
                 temp = self.config.roles.index(r.id) + 1
@@ -155,7 +159,7 @@ class Bot(discord.Client):
                 continue
             else:
                 highest = temp
-        return highest
+        return highest    
     
     def list_roles(self, levels=range(0)):
         text = ''
@@ -174,7 +178,7 @@ class Bot(discord.Client):
         players = []
         
         for u in self.gameslists[game.lower()]:
-            players.append(self.server.get_member(u))
+            players.append(self.server.get_member(int(u)))
         while None in players:
             players.remove(None)
         
@@ -190,16 +194,18 @@ class Bot(discord.Client):
     async def query(self, user, mess):
         reactions = ['\u2705','\u274c']
         for r in reactions:
-            await self.add_reaction(mess, r)
-            
-        answer = await self.wait_for_reaction(reactions, user=user, timeout=30, message=mess)
+            await mess.add_reaction(r)
         
-        if not answer:
-            await self.send_message(self.channel, 'Request timed out.')
-            await self.delete_message(mess)
+        def reac_check(reaction, author):
+            return reaction.message.id == mess.id and reaction.emoji in reactions and author == user
+        try:
+            answer, _ = await self.wait_for('reaction_add', check=reac_check, timeout=30)
+        except:
+            await self.channel.send('Request timed out.')
+            await mess.delete()
             raise TimeoutError
         
-        return answer.reaction.emoji == reactions[0]
+        return answer.emoji == reactions[0]
     
     async def screen(self, mess):
         text = mess.content.translate(' ')
@@ -211,14 +217,14 @@ class Bot(discord.Client):
                 break
         
         if bad:
-            await self.send_message(mess.channel, 'Message from %s was removed because it contained a banned character combination.' % mess.author.mention)
-            await self.delete_message(mess)
+            await mess.channel.send('Message from %s was removed because it contained a banned character combination.' % mess.author.mention)
+            await mess.delete()
         
         return bad
     
     async def cmd_add(self, user, game):
         if game.lower() in self.config.games:
-            await self.send_message(self.channel, 'This game group already exists.')
+            await self.channel.send('This game group already exists.')
             return
         
         self.config.games.append(game.lower())
@@ -226,18 +232,18 @@ class Bot(discord.Client):
         file_append('gameslist.txt', game.lower())
         file_create('games/%s.txt' % game.lower())
         print('Game added by %s - %s' % (user.name, game))
-        await self.send_message(self.channel, '%s game invite group added by %s' % (game, user.name))
+        await self.channel.send('%s game invite group added by %s' % (game, user.name))
     
     async def cmd_channel(self, chan):
         self.channel = chan
         print('Channel changed to %s.' % chan.name)
-        await self.send_message(chan, 'Channel changed to %s.' % chan.name)
+        await chan.send('Channel changed to %s.' % chan.name)
     
     async def cmd_clean(self):
         self.list_clean()
         
     async def cmd_close(self):
-        await self.send_message(self.channel, 'Clocking out...')
+        await self.channel.send('Clocking out...')
         self.logout()
         exit()
         
@@ -247,28 +253,28 @@ class Bot(discord.Client):
         for t in functions:
             if t[0][0:4] == 'cmd_' and self.allowed(user, t[0][4:]):
                 commands.append(self.config.prefix + t[0][4:])
-        await self.send_message(self.channel, "Command list: \n```%s```" % lister(commands))
+        await self.channel.send("Command list: \n```%s```" % lister(commands))
         
     async def cmd_join(self, user, game):
         self.game_check(game)
         
         if user.id in self.gameslists[game.lower()]:
-            await self.send_message(self.channel, 'You are already part of the %s group.' % game)
+            await self.channel.send('You are already part of the %s group.' % game)
             return
         
         self.gameslists[game.lower()].append(user.id)
         file_append('games/%s.txt' % game.lower(), user.id)
-        await self.send_message(self.channel, 'You are now part of the %s group, %s.' % (game, user.name))
+        await self.channel.send('You are now part of the %s group, %s.' % (game, user.name))
      
     async def cmd_games(self):
         if len(self.config.games) == 0:
-            await self.send_message(self.channel, 'There are no game invite groups. Hopefully someone will add one!')
+            await self.channel.send('There are no game invite groups. Hopefully someone will add one!')
             return
         
         games = []
         for g in self.config.games:
             games.append(capital(g))
-        await self.send_message(self.channel, 'Here is the list of game invite groups:\n*(Capitalization is not important)*\n```%s```' % lister(games, _and=True))
+        await self.channel.send('Here is the list of game invite groups:\n*(Capitalization is not important)*\n```%s```' % lister(games, _and=True))
         
     async def cmd_invite(self, user, game):
         self.game_check(game)
@@ -281,7 +287,7 @@ class Bot(discord.Client):
             pass
         
         selected = []
-        if await self.query(user, await self.send_message(chan, 'Do you want to invite everyone from the %s group?' % game)):
+        if await self.query(user, await chan.send('Do you want to invite everyone from the %s group?' % game)):
             for p in players:
                 if str(p.status) == 'online':
                     selected.append(p)
@@ -301,28 +307,30 @@ class Bot(discord.Client):
                 for j in range(1, amount+1):
                     options += '%d: %s\n' % (j, players[i+j-1])
                     
-                request = await self.send_message(chan, 'Select players to invite from the list below by clicking on the corresponding reactions. Then click the check button to continue.\n```%s```' % options)
+                request = await chan.send('Select players to invite from the list below by clicking on the corresponding reactions. Then click the check button to continue.\n```%s```' % options)
                 for j in range(0, amount):
-                    await self.add_reaction(request, nreact[j])
-                await self.add_reaction(request, '\u2705')
+                    await request.add_reaction(nreact[j])
+                await request.add_reaction('\u2705')
                 
-                done = await self.wait_for_reaction('\u2705', user=user, timeout=40, message=request)
-                
-                if not done:
-                    await self.send_message(chan, 'Request timed out.')
-                    await self.delete_message(request)
+                def reac_check(reaction, author):
+                    return reaction.message.id == request.id and reaction.emoji == '\u2705' and author == user
+                try:
+                    await self.wait_for('reaction_add', check=reac_check, timeout=40)
+                except:
+                    await chan.send('Request timed out.')
+                    await request.delete()
                     raise TimeoutError
                 
-                request = discord.utils.get(self.messages, id=request.id)
+                request = await chan.get_message(request.id)
                 reactions = request.reactions[:amount]
-                await self.delete_message(request)
+                await request.delete()
                 
                 for r in reactions:
                     if r.count > 1:
                         selected.append(players[i + nreact.index(r.emoji)])
         
         if not len(selected):
-            if await self.query(user, await self.send_message(chan, 'You appear to have not selected any players to invite. (Or they might just be offline)\nTry again?')):
+            if await self.query(user, await chan.send('You appear to have not selected any players to invite. (Or they might just be offline)\nTry again?')):
                 await self.cmd_invite(user, game)
             return
         
@@ -331,26 +339,26 @@ class Bot(discord.Client):
             mentions.append(u.mention)
                         
         if chan != self.invite_channel:
-            await self.send_message(chan, 'Broadcasting invites on text channel #%s...' % self.invite_channel.name)
-        await self.send_message(self.invite_channel, 'The following players have been invited by %s to play %s:\n%s.' % (user.name, game, lister(mentions, True))) 
+            await chan.send('Broadcasting invites on text channel #%s...' % self.invite_channel.name)
+        await self.invite_channel.send('The following players have been invited by %s to play %s:\n%s.' % (user.name, game, lister(mentions, True))) 
     
     
     async def cmd_leave(self, user, game):
         self.game_check(game)
         
         if not user.id in self.gameslists[game.lower()]:
-            await self.send_message(self.channel, 'You are not part of the %s group.' % game)
+            await self.channel.send('You are not part of the %s group.' % game)
             return
         
         self.gameslists[game.lower()].remove(user.id)
         file_write('games/%s.txt' % game.lower(), self.gameslists[game.lower()])
-        await self.send_message(self.channel, 'You are no longer part of the %s group, %s.' % (game, user.name))
+        await self.channel.send('You are no longer part of the %s group, %s.' % (game, user.name))
     
     async def cmd_players(self, user, game):
         self.game_check(game)
         
         if len(self.gameslists[game.lower()]) == 0:
-            await self.send_message(self.channel, 'There are no players in the %s group. Perhaps you should join.' % game)
+            await self.channel.send('There are no players in the %s group. Perhaps you should join.' % game)
             return
         
         players = self.list_players(game)
@@ -358,10 +366,10 @@ class Bot(discord.Client):
         for p in players:
             namelist.append(p.name)
         
-        await self.send_message(self.channel, 'The following users play %s: \n```%s```' % (game, lister(namelist, _and=True)))
+        await self.channel.send('The following users play %s: \n```%s```' % (game, lister(namelist, _and=True)))
     
     async def cmd_roles(self):
-        await self.send_message(self.channel, 'Managed Roles:\n```%s```' % self.list_roles())
+        await self.channel.send('Managed Roles:\n```%s```' % self.list_roles())
 
     async def cmd_reload(self):
         self.config = Config('settings.ini')
@@ -378,7 +386,7 @@ class Bot(discord.Client):
         file_write('gameslist.txt', self.config.games)
         os.remove('games/%s.txt' % game.lower())
         print('Game removed by %s - %s' % (user.name, game))
-        await self.send_message(self.channel, '%s game invite group removed by %s' % (game, user.name))
+        await self.channel.send('%s game invite group removed by %s' % (game, user.name))
         
         await self.cmd_reload() # don't want to do this but it works
     
@@ -405,8 +413,8 @@ class Bot(discord.Client):
             month = now.month
             
         date = datetime(now.year, month, day, hour, minute)
-        async for message in self.logs_from(channel, limit=200, after=date):
-            await self.delete_message(message)
+        async for message in channel.history(limit=200, after=date):
+            await message.delete()
     
     async def cmd_verify(self, sponsor, name):
         chan = self.channel
@@ -418,28 +426,31 @@ class Bot(discord.Client):
         levels = range(elevel, level)
         
         if elevel >= level:
-            await self.send_message(chan, "You don't have permission to grant that user a role higher than they currently have.")
+            await chan.send("You don't have permission to grant that user a role higher than they currently have.")
             return
         
-        request = await self.send_message(chan, 'Please select a role to assign to %s:\n```%s```' % (endorsed.name, self.list_roles(levels)))
+        request = await chan.send('Please select a role to assign to %s:\n```%s```' % (endorsed.name, self.list_roles(levels)))
         
         reactions = self.numerical_reactions
         for i in levels:
-            await self.add_reaction(request, reactions[i])
-        answer = await self.wait_for_reaction(reactions[elevel:level], user=sponsor, timeout=30, message=request)
-        
-        if not answer:
-            await self.send_message(chan, 'Request timed out.')
-            await self.delete_message(request)
+            await request.add_reaction(reactions[i])
+            
+        def reac_check(reaction, author):
+            return reaction.message.id == request.id and reaction.emoji in reactions[elevel:level] and author == sponsor
+        try:
+            answer, _ = await self.wait_for('reaction_add', check=reac_check, timeout=30)
+        except:
+            await chan.send('Request timed out.')
+            await request.delete()
             raise TimeoutError
         
         for i in levels:
-            if answer.reaction.emoji == reactions[i]:
+            if answer.emoji == reactions[i]:
                 for r in self.server.roles:
                     if r.id == self.config.roles[i]:
-                        await self.add_roles(endorsed, r)
-                        await self.send_message(chan, '%s successfully given %s role by %s.' % (endorsed.name, r.name, sponsor.name))
-                        await self.delete_message(request)
+                        await endorsed.add_roles(r)
+                        await chan.send('%s successfully given %s role by %s.' % (endorsed.name, r.name, sponsor.name))
+                        await request.delete()
                         return
             
     
@@ -491,15 +502,15 @@ class Bot(discord.Client):
                         await function(parameter1, parameter2)
                         
                 except MemberError:
-                    await self.send_message(mess.channel, 'Could not find a user by the name of %s' % parameter2)
+                    await mess.channel.send('Could not find a user by the name of %s' % parameter2)
 
                 except GameError:
-                    await self.send_message(mess.channel, 'Could not find a game group by the name of %s' % parameter2)
-                    if self.allowed(mess.author, getattr(self, 'cmd_add')) and await self.query(mess.author, await self.send_message(mess.channel, 'Would you like to add it?')):
+                    await mess.channel.send('Could not find a game group by the name of %s' % parameter2)
+                    if self.allowed(mess.author, getattr(self, 'cmd_add')) and await self.query(mess.author, await mess.channel.send('Would you like to add it?')):
                         await self.cmd_add(parameter1, parameter2)
                 
                 except PlayerError:
-                    await self.send_message(self.channel, 'There are no players in the %s group. Perhaps you should join.' % parameter2)
+                    await self.channel.send('There are no players in the %s group. Perhaps you should join.' % parameter2)
                     
                 except TimeoutError:
                     pass
@@ -507,8 +518,8 @@ class Bot(discord.Client):
                     
                     
             else:
-                await self.send_message(mess.channel, 'You do not have permission to use that command.')
-    
+                await mess.channel.send('You do not have permission to use that command.')
+                print(self.level(mess.author))
     
     
     
