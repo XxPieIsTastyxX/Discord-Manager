@@ -54,7 +54,7 @@ def file_write(name, items):
     
 def file_append(name, item):
     file = open(name, 'a')
-    file.write(item+'\n')
+    file.write(str(item)+'\n')
     file.close()
     
 def file_create(name):
