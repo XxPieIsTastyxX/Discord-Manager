@@ -27,7 +27,7 @@ def capital(text):
         text += w + ' '
     return text[:-1]
 
-def file_read(name):
+def file_read(name, num=False):
     items = []
     file = open(name)
     while True:
@@ -41,6 +41,9 @@ def file_read(name):
         else:
             items.append(line)
     file.close()
+    if num:
+        for it in items:
+            it = int(it)
     return items
 
 def file_write(name, items):
@@ -105,7 +108,7 @@ class Bot(discord.Client):
         self.numerical_reactions = ['\u0031\u20E3', '\u0032\u20E3', '\u0033\u20E3', '\u0034\u20E3', '\u0035\u20E3', '\u0036\u20E3', '\u0037\u20E3', '\u0038\u20E3', '\u0039\u20E3']
         self.gameslists = dict()
         for g in self.config.games:
-            self.gameslists[g] = file_read('games/%s.txt' % g)
+            self.gameslists[g] = file_read('games/%s.txt' % g, num=True)
         
     
     async def on_ready(self):
@@ -519,7 +522,6 @@ class Bot(discord.Client):
                     
             else:
                 await mess.channel.send('You do not have permission to use that command.')
-                print(self.level(mess.author))
     
     
     
