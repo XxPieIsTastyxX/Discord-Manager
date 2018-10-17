@@ -27,7 +27,7 @@ def capital(text):
         text += w + ' '
     return text[:-1]
 
-def file_read(name, num=False):
+def file_read(name):
     items = []
     file = open(name)
     while True:
@@ -41,9 +41,6 @@ def file_read(name, num=False):
         else:
             items.append(line)
     file.close()
-    if num:
-        for it in items:
-            it = int(it)
     return items
 
 def file_write(name, items):
@@ -63,7 +60,7 @@ def file_create(name):
     
 def file_clean(name):
     items = file_read(name)
-    file_write(name, items)
+    file_write(name, sorted(items))
     
 
 
@@ -108,7 +105,7 @@ class Bot(discord.Client):
         self.numerical_reactions = ['\u0031\u20E3', '\u0032\u20E3', '\u0033\u20E3', '\u0034\u20E3', '\u0035\u20E3', '\u0036\u20E3', '\u0037\u20E3', '\u0038\u20E3', '\u0039\u20E3']
         self.gameslists = dict()
         for g in self.config.games:
-            self.gameslists[g] = file_read('games/%s.txt' % g, num=True)
+            self.gameslists[g] = file_read('games/%s.txt' % g)
         
     
     async def on_ready(self):
@@ -152,6 +149,21 @@ class Bot(discord.Client):
     def game_check(self, game):
         if not game.lower() in self.config.games:
             raise GameError
+    
+    async def game_join(self, user, game):
+        uid = str(user.id)
+        if uid in self.gameslists[game.lower()]:
+            return False
+        
+        self.gameslists[game.lower()].append(uid)
+        file_append('games/%s.txt' % game.lower(), uid)
+        return True
+    
+    async def multi_join(self, user):
+        games = await self.multi_query(user, self.config.games, 'game groups to join')
+        
+        for g in games:
+            await self.game_join(user, g)
     
     def level(self, user):
         highest = 0
@@ -210,6 +222,46 @@ class Bot(discord.Client):
         
         return answer.emoji == reactions[0]
     
+    async def multi_query(self, user, items, selecting='\b'):
+        chan = self.channel
+        nreact = self.numerical_reactions
+            
+        selected = []
+        for i in range(0, len(items)-1, 9):
+            remaining = len(items) - i
+            if remaining <= 9:
+                amount = remaining
+            else:
+                amount = 9
+                
+            options = ''
+            for j in range(1, amount+1):
+                options += '%d: %s\n' % (j, items[i+j-1])
+                
+            request = await chan.send('Select %s from the list below by clicking on the corresponding reactions. Then click the check button to continue.\n```%s```' % (selecting, options))
+            for j in range(0, amount):
+                await request.add_reaction(nreact[j])
+            await request.add_reaction('\u2705')
+            
+            def reac_check(reaction, author):
+                return reaction.message.id == request.id and reaction.emoji == '\u2705' and author == user
+            try:
+                await self.wait_for('reaction_add', check=reac_check, timeout=40)
+            except:
+                await chan.send('Request timed out.')
+                await request.delete()
+                raise TimeoutError
+            
+            request = await chan.get_message(request.id)
+            reactions = request.reactions[:amount]
+            await request.delete()
+            
+            for r in reactions:
+                if r.count > 1:
+                    selected.append(items[i + nreact.index(r.emoji)])
+                    
+        return selected
+    
     async def screen(self, mess):
         text = mess.content.translate(' ')
         
@@ -258,16 +310,18 @@ class Bot(discord.Client):
                 commands.append(self.config.prefix + t[0][4:])
         await self.channel.send("Command list: \n```%s```" % lister(commands))
         
-    async def cmd_join(self, user, game):
-        self.game_check(game)
-        
-        if user.id in self.gameslists[game.lower()]:
-            await self.channel.send('You are already part of the %s group.' % game)
+    async def cmd_join(self, user, game=None):
+        if game == None:
+            await self.multi_join(user)
+            await self.channel.send('%s, you have have been added to all the groups you selected.' % user.name)
             return
         
-        self.gameslists[game.lower()].append(user.id)
-        file_append('games/%s.txt' % game.lower(), user.id)
-        await self.channel.send('You are now part of the %s group, %s.' % (game, user.name))
+        self.game_check(game)
+        
+        if await self.game_join(user, game):
+            await self.channel.send('You are now part of the %s group, %s.' % (capital(game), user.name))
+        else:
+            await self.channel.send('You are already part of the %s group.' % capital(game))
      
     async def cmd_games(self):
         if len(self.config.games) == 0:
@@ -275,6 +329,7 @@ class Bot(discord.Client):
             return
         
         games = []
+        self.config.games = sorted(self.config.games)
         for g in self.config.games:
             games.append(capital(g))
         await self.channel.send('Here is the list of game invite groups:\n*(Capitalization is not important)*\n```%s```' % lister(games, _and=True))
@@ -296,41 +351,7 @@ class Bot(discord.Client):
                     selected.append(p)
             
         else:
-            nreact = self.numerical_reactions
-            
-            selected = []
-            for i in range(0, len(players), 9):
-                remaining = len(players) - i
-                if remaining <= 9:
-                    amount = remaining
-                else:
-                    amount = 9
-                    
-                options = ''
-                for j in range(1, amount+1):
-                    options += '%d: %s\n' % (j, players[i+j-1])
-                    
-                request = await chan.send('Select players to invite from the list below by clicking on the corresponding reactions. Then click the check button to continue.\n```%s```' % options)
-                for j in range(0, amount):
-                    await request.add_reaction(nreact[j])
-                await request.add_reaction('\u2705')
-                
-                def reac_check(reaction, author):
-                    return reaction.message.id == request.id and reaction.emoji == '\u2705' and author == user
-                try:
-                    await self.wait_for('reaction_add', check=reac_check, timeout=40)
-                except:
-                    await chan.send('Request timed out.')
-                    await request.delete()
-                    raise TimeoutError
-                
-                request = await chan.get_message(request.id)
-                reactions = request.reactions[:amount]
-                await request.delete()
-                
-                for r in reactions:
-                    if r.count > 1:
-                        selected.append(players[i + nreact.index(r.emoji)])
+            selected = self.multi_query(user, players, 'players to invite')
         
         if not len(selected):
             if await self.query(user, await chan.send('You appear to have not selected any players to invite. (Or they might just be offline)\nTry again?')):
