@@ -369,12 +369,13 @@ class Bot(discord.Client):
     
     async def cmd_leave(self, user, game):
         self.game_check(game)
+        uid = str(user.id)
         
-        if not user.id in self.gameslists[game.lower()]:
+        if not uid in self.gameslists[game.lower()]:
             await self.channel.send('You are not part of the %s group.' % game)
             return
         
-        self.gameslists[game.lower()].remove(user.id)
+        self.gameslists[game.lower()].remove(uid)
         file_write('games/%s.txt' % game.lower(), self.gameslists[game.lower()])
         await self.channel.send('You are no longer part of the %s group, %s.' % (game, user.name))
     
