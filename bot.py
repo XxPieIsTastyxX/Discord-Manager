@@ -345,13 +345,13 @@ class Bot(discord.Client):
             pass
         
         selected = []
-        if await self.query(user, await chan.send('Do you want to invite everyone from the %s group?' % game)):
+        if await self.query(user, await chan.send('Do you want to invite all online players from the %s group?' % game)):
             for p in players:
                 if str(p.status) == 'online':
                     selected.append(p)
             
         else:
-            selected = self.multi_query(user, players, 'players to invite')
+            selected = await self.multi_query(user, players, 'players to invite')
         
         if not len(selected):
             if await self.query(user, await chan.send('You appear to have not selected any players to invite. (Or they might just be offline)\nTry again?')):
