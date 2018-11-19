@@ -97,6 +97,7 @@ class Bot(discord.Client):
     def __init__(self):
         super().__init__(max_messages=500)
         self.config = Config('settings.ini')
+        self.active = True
         self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'remove': -1, 'reload': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
         self.channel = None
         self.invite_channel = None
@@ -299,6 +300,7 @@ class Bot(discord.Client):
         
     async def cmd_close(self):
         await self.channel.send('Clocking out...')
+        self.active = False
         self.logout()
         exit()
         
@@ -550,7 +552,9 @@ class Bot(discord.Client):
     
 if __name__ == '__main__':
     t=Bot()
-    t.run(t.config.token)
+    while t.active:
+        t.run(t.config.token)
+        asyncio.sleep(60)
     
     
     
