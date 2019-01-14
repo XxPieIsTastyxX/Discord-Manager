@@ -69,7 +69,8 @@ class MemberError(Exception):
 class ChannelError(Exception):
     pass
 class GameError(Exception):
-    pass
+    def __init__(self, name=None):
+        self.name = name
 class PlayerError(Exception):
     pass
 
@@ -98,15 +99,20 @@ class Bot(discord.Client):
         super().__init__(max_messages=500)
         self.config = Config('settings.ini')
         self.active = True
-        self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'remove': -1, 'reload': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
+        self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'alias': -2, 'remove': -1, 'reload': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
         self.channel = None
         self.invite_channel = None
         self.server = None
         self.num_roles = len(self.config.roles)
         self.numerical_reactions = ['\u0031\u20E3', '\u0032\u20E3', '\u0033\u20E3', '\u0034\u20E3', '\u0035\u20E3', '\u0036\u20E3', '\u0037\u20E3', '\u0038\u20E3', '\u0039\u20E3']
+        self.list_clean()
         self.gameslists = dict()
+        self.aliases = dict()
         for g in self.config.games:
             self.gameslists[g] = file_read('games/%s.txt' % g)
+            for a in file_read('aliases/%s.txt' % g):
+                self.aliases[a] = g
+        self.alias_list = list(self.aliases.keys())
         
     
     async def on_ready(self):
@@ -133,7 +139,14 @@ class Bot(discord.Client):
     def list_clean(self):
         file_clean('gameslist.txt')
         for g in self.config.games:
-            file_clean('games/%s.txt' % g)
+            try:
+                file_clean('games/%s.txt' % g)
+            except FileNotFoundError:
+                file_create('games/%s.txt' % g)
+            try:
+                file_clean('aliases/%s.txt' % g)
+            except FileNotFoundError:
+                file_create('aliases/%s.txt' % g)
 
     def find(self, name):
         for m in self.server.members:
@@ -149,7 +162,12 @@ class Bot(discord.Client):
     
     def game_check(self, game):
         if not game.lower() in self.config.games:
-            raise GameError
+            if game.lower() in self.alias_list:
+                return self.aliases[game]
+            else:
+                raise GameError
+        else:
+            return game
     
     async def game_join(self, user, game):
         uid = str(user.id)
@@ -228,9 +246,9 @@ class Bot(discord.Client):
         nreact = self.numerical_reactions
             
         selected = []
-        for i in range(0, len(items)-1, 9):
+        for i in range(0, len(items), 9):
             remaining = len(items) - i
-            if remaining <= 9:
+            if remaining < 9:
                 amount = remaining
             else:
                 amount = 9
@@ -280,8 +298,7 @@ class Bot(discord.Client):
     
     async def cmd_add(self, user, game):
         if game.lower() in self.config.games:
-            await self.channel.send('This game group already exists.')
-            return
+            raise GameError(game.lower())
         
         self.config.games.append(game.lower())
         self.gameslists[game.lower()] = []
@@ -289,6 +306,42 @@ class Bot(discord.Client):
         file_create('games/%s.txt' % game.lower())
         print('Game added by %s - %s' % (user.name, game))
         await self.channel.send('%s game invite group added by %s' % (game, user.name))
+    
+    async def cmd_alias(self, user, game):
+        game = self.game_check(game)
+            
+        chan = self.channel
+        
+        mess = await chan.send('Respond with a list of aliases to use for the %s game group.\nMultiple aliases should be placed on separate lines.' % game)
+        
+        def mess_check(message):
+            return message.author == user and message.channel == chan
+        try:
+            answer = await self.wait_for('message', check=mess_check, timeout=30)
+        except:
+            await chan.send('Request timed out.')
+            await mess.delete()
+            raise TimeoutError
+        
+        games = list(self.gameslists.keys())
+        aliases = []
+        existing = []
+        for al in answer.content.split('\n'):
+            a = al.lower()
+            if a in aliases:
+                pass
+            elif a in games or a in self.alias_list:
+                existing.append(a)
+            else:
+                aliases.append(a)
+                self.alias_list.append(a)
+                self.aliases[a] = game
+                file_append('aliases/%s.txt' % game, a)
+        
+        if aliases:
+            await chan.send('The following aliases were added for the %s game group:\n```%s```' % (game, lister(aliases, _and=True)))
+        if existing:
+            await chan.send('The following aliases were not added, as they are already in use:\n```%s```' % (game, lister(existing, _and=True)))
     
     async def cmd_channel(self, chan):
         self.channel = chan
@@ -318,7 +371,7 @@ class Bot(discord.Client):
             await self.channel.send('%s, you have have been added to all the groups you selected.' % user.name)
             return
         
-        self.game_check(game)
+        game = self.game_check(game)
         
         if await self.game_join(user, game):
             await self.channel.send('You are now part of the %s group, %s.' % (capital(game), user.name))
@@ -337,7 +390,7 @@ class Bot(discord.Client):
         await self.channel.send('Here is the list of game invite groups:\n*(Capitalization is not important)*\n```%s```' % lister(games, _and=True))
         
     async def cmd_invite(self, user, game):
-        self.game_check(game)
+        game = self.game_check(game)
         chan = self.channel
         
         players = self.list_players(game)
@@ -370,7 +423,7 @@ class Bot(discord.Client):
     
     
     async def cmd_leave(self, user, game):
-        self.game_check(game)
+        game = self.game_check(game)
         uid = str(user.id)
         
         if not uid in self.gameslists[game.lower()]:
@@ -382,7 +435,7 @@ class Bot(discord.Client):
         await self.channel.send('You are no longer part of the %s group, %s.' % (game, user.name))
     
     async def cmd_players(self, user, game):
-        self.game_check(game)
+        game = self.game_check(game)
         
         if len(self.gameslists[game.lower()]) == 0:
             await self.channel.send('There are no players in the %s group. Perhaps you should join.' % game)
@@ -406,7 +459,7 @@ class Bot(discord.Client):
             self.gameslists[g] = file_read('games/%s.txt' % g)
         
     async def cmd_remove(self, user, game):
-        self.game_check(game)
+        game = self.game_check(game)
         
         self.config.games.remove(game.lower())
         self.gameslists[game.lower()] = []
@@ -531,11 +584,14 @@ class Bot(discord.Client):
                 except MemberError:
                     await mess.channel.send('Could not find a user by the name of %s' % parameter2)
 
-                except GameError:
-                    await mess.channel.send('Could not find a game group by the name of %s' % parameter2)
-                    if self.allowed(mess.author, getattr(self, 'cmd_add')) and await self.query(mess.author, await mess.channel.send('Would you like to add it?')):
-                        await self.cmd_add(parameter1, parameter2)
-                
+                except GameError as err:
+                    if err.name:
+                        await mess.channel.send('The %s game group already exists.' % err.name)
+                    else:
+                        await mess.channel.send('Could not find a game group by the name of %s' % parameter2)
+                        if self.allowed(mess.author, getattr(self, 'cmd_add')) and await self.query(mess.author, await mess.channel.send('Would you like to add it?')):
+                            await self.cmd_add(parameter1, parameter2)
+                    
                 except PlayerError:
                     await self.channel.send('There are no players in the %s group. Perhaps you should join.' % parameter2)
                     
