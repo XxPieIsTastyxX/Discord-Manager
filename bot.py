@@ -100,6 +100,7 @@ class Bot(discord.Client):
         self.config = Config('settings.ini')
         self.active = True
         self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'alias': -2, 'remove': -1, 'reload': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
+        self.external_commands = ['channel', 'scrub', 'vote']
         self.channel = None
         self.invite_channel = None
         self.server = None
@@ -493,8 +494,7 @@ class Bot(discord.Client):
             month = now.month
             
         date = datetime(now.year, month, day, hour, minute)
-        async for message in channel.history(limit=200, after=date):
-            await message.delete()
+        await channel.purge(limit=200, after=date)
     
     async def cmd_verify(self, sponsor, name):
         chan = self.channel
@@ -532,16 +532,28 @@ class Bot(discord.Client):
                         await chan.send('%s successfully given %s role by %s.' % (endorsed.name, r.name, sponsor.name))
                         await request.delete()
                         return
-            
     
+    async def cmd_vote(self, chan, number = None):
+        if number:
+            if int(number) > 9:
+                await chan.send('The maximum number of choices is 9.')
+                return
+            reactions = self.numerical_reactions[:int(number)]
+        else:
+            reactions = ['\u2705','\u2754','\u274c']
+            
+        messages = await chan.history(limit=2).flatten()
+        mess = messages[1]
+        for r in reactions:
+            await mess.add_reaction(r)
+        
+        
     async def on_message(self, mess):
         await self.wait_until_ready()
         
         if await self.screen(mess):
             return
         if not mess.content.startswith(self.config.prefix):
-            return        
-        if not ( mess.channel == self.channel or mess.content[1:8] == 'channel' or mess.content[1:6] == 'scrub' ):
             return        
         if mess.author == self.user:
             return
@@ -551,10 +563,14 @@ class Bot(discord.Client):
         except ValueError:
             space = None
         command = mess.content[1:space]
+        
+        if not (mess.channel == self.channel or command in self.external_commands):
+            return
+        
         print('Command detected - %s' % command)
         self.log(mess)
         
-        if command == 'channel' or command == 'scrub':
+        if command in self.external_commands:
             parameter1 = mess.channel
         else:
             parameter1 = mess.author
