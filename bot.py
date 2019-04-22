@@ -85,6 +85,7 @@ class Config:
         self.channel = config.getint('Essential','MainChannel',fallback=None)
         self.invites = config.getint('Optional','GameChannel',fallback=self.channel)
         self.banned_strings = config.get('Optional','Strings',fallback='')
+        self.delete_commands = config.get('Optional','Delete',fallback=False)
         self.games = file_read('gameslist.txt')
         
         self.banned_strings = self.banned_strings.split(' ')
@@ -101,6 +102,7 @@ class Bot(discord.Client):
         self.active = True
         self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'alias': -2, 'remove': -1, 'reload': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
         self.external_commands = ['channel', 'scrub', 'vote']
+        self.destruct_commands = ['vote']
         self.channel = None
         self.invite_channel = None
         self.server = None
@@ -614,7 +616,9 @@ class Bot(discord.Client):
                 except TimeoutError:
                     pass
                 
-                    
+                else:
+                    if self.config.delete_commands or command in self.destruct_commands:
+                        await mess.delete()
                     
             else:
                 await mess.channel.send('You do not have permission to use that command.')
