@@ -274,7 +274,7 @@ class Bot(discord.Client):
                 await request.delete()
                 raise TimeoutError
             
-            request = await chan.get_message(request.id)
+            request = await chan.fetch_message(request.id)
             reactions = request.reactions[:amount]
             await request.delete()
             
