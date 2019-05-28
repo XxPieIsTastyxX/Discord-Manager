@@ -54,6 +54,11 @@ def file_append(name, item):
     file.write(str(item)+'\n')
     file.close()
     
+def file_append_utf8(name, item):
+    file = open(name, 'a', encoding='utf8')
+    file.write(str(item)+'\n')
+    file.close()
+    
 def file_create(name):
     file = open(name, 'w+')
     file.close()
@@ -222,7 +227,7 @@ class Bot(discord.Client):
         return players
     
     def log(self, message):
-        file_append('log.txt', '<Command Detected>\n[%s] [%s] [%s]\n%s' % (strftime('%D %T'), message.channel.name, message.author.name, message.content))
+        file_append_utf8('log.txt', '<Command Detected>\n[%s] [%s] [%s]\n%s' % (strftime('%D %T'), message.channel.name, message.author.name, message.content))
     
     def allowed(self, user, command):
         return not (command in list(self.restricted_commands.keys())) or \
