@@ -103,7 +103,7 @@ class Config:
 class Bot(discord.Client):
     def __init__(self):
         super().__init__(max_messages=500)
-        self.config = Config('settings.ini')
+        self.config = Config('mb_settings.ini')
         self.active = True
         self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'alias': -2, 'remove': -1, 'reload': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
         self.external_commands = ['channel', 'scrub', 'vote']
@@ -305,6 +305,9 @@ class Bot(discord.Client):
         return bad
     
     async def cmd_add(self, user, game):
+        '''Adds a new game invite group
+        Usage: .add [game]
+        '''
         if game.lower() in self.config.games:
             raise GameError(game.lower())
         
@@ -316,6 +319,9 @@ class Bot(discord.Client):
         await self.channel.send('%s game invite group added by %s' % (game, user.name))
     
     async def cmd_alias(self, user, game):
+        '''Adds an alias for a game invite group, allowing it to be referred by multiple names
+        Usage: .alias [game]
+        '''
         game = self.game_check(game)
             
         chan = self.channel
@@ -362,9 +368,9 @@ class Bot(discord.Client):
     async def cmd_close(self):
         await self.channel.send('Clocking out...')
         self.active = False
-        self.logout()
+        await self.logout()
         exit()
-        
+           
     async def cmd_help(self, user):
         functions = inspect.getmembers(self, predicate=inspect.ismethod)
         commands = []
@@ -460,7 +466,7 @@ class Bot(discord.Client):
         await self.channel.send('Managed Roles:\n```%s```' % self.list_roles())
 
     async def cmd_reload(self):
-        self.config = Config('settings.ini')
+        self.config = Config('mb_settings.ini')
         self.num_roles = len(self.config.roles)
         self.gameslists = dict()
         for g in self.config.games:
