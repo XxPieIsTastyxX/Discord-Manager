@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from time import strftime
 
-def lister(array, _and=False):
+def lister(array, and_=False):
     compiled = array[0]
     if len(array)==1:
         return compiled
@@ -14,7 +14,7 @@ def lister(array, _and=False):
         for n in array[1:-1]:
             compiled += ", " + n
         compiled += "," #Oxford comma
-    if len(array) == 2 or _and == True:
+    if len(array) == 2 or and_ == True:
         compiled += " and"
     compiled += " " + array[-1]
     return compiled
@@ -243,7 +243,6 @@ class Bot(discord.Client):
         try:
             answer, _ = await self.wait_for('reaction_add', check=reac_check, timeout=30)
         except:
-            await self.channel.send('Request timed out.')
             await mess.delete()
             raise TimeoutError
         
@@ -275,7 +274,6 @@ class Bot(discord.Client):
             try:
                 await self.wait_for('reaction_add', check=reac_check, timeout=40)
             except:
-                await chan.send('Request timed out.')
                 await request.delete()
                 raise TimeoutError
             
@@ -333,7 +331,6 @@ class Bot(discord.Client):
         try:
             answer = await self.wait_for('message', check=mess_check, timeout=30)
         except:
-            await chan.send('Request timed out.')
             await mess.delete()
             raise TimeoutError
         
@@ -533,7 +530,6 @@ class Bot(discord.Client):
         try:
             answer, _ = await self.wait_for('reaction_add', check=reac_check, timeout=30)
         except:
-            await chan.send('Request timed out.')
             await request.delete()
             raise TimeoutError
         
@@ -625,7 +621,7 @@ class Bot(discord.Client):
                     await self.channel.send('There are no players in the %s group. Perhaps you should join.' % parameter2)
                     
                 except TimeoutError:
-                    pass
+                    await mess.channel.send('Request timed out.')
                 
                 else:
                     if self.config.delete_commands or command in self.destruct_commands:
