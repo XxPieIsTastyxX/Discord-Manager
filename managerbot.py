@@ -79,6 +79,8 @@ class GameError(Exception):
 class PlayerError(Exception):
     pass
 
+
+
 class Config:
     def __init__(self, cfg):
         self.file = cfg
@@ -98,7 +100,8 @@ class Config:
         self.roles = []
         for rs in self.role_strings:
             self.roles.append(int(rs))
-        
+
+
 
 class Bot(discord.Client):
     def __init__(self):
@@ -121,7 +124,7 @@ class Bot(discord.Client):
             for a in file_read('aliases/%s.txt' % g):
                 self.aliases[a] = g
         self.alias_list = list(self.aliases.keys())
-        
+    
     
     async def on_ready(self):
         print('------')
@@ -141,9 +144,8 @@ class Bot(discord.Client):
         print(self.server.name)
         print(self.invite_channel.name)
         print(self.invite_channel.id)
-        print('------')
-        
-        
+        print('------')       
+    
     def list_clean(self):
         file_clean('gameslist.txt')
         for g in self.config.games:
@@ -302,6 +304,7 @@ class Bot(discord.Client):
         
         return bad
     
+    
     async def cmd_add(self, user, game):
         '''Adds a new game invite group
         Usage: .add [game]
@@ -367,7 +370,7 @@ class Bot(discord.Client):
         self.active = False
         await self.logout()
         exit()
-           
+        
     async def cmd_help(self, user):
         functions = inspect.getmembers(self, predicate=inspect.ismethod)
         commands = []
@@ -431,7 +434,6 @@ class Bot(discord.Client):
         if chan != self.invite_channel:
             await chan.send('Broadcasting invites on text channel #%s...' % self.invite_channel.name)
         await self.invite_channel.send('The following players have been invited by %s to play %s:\n%s.' % (user.name, game, lister(mentions, True))) 
-    
     
     async def cmd_leave(self, user, game):
         game = self.game_check(game)
@@ -588,7 +590,6 @@ class Bot(discord.Client):
             parameter2 = None    
         else:
             parameter2 = mess.content[space+1:]
-        
             
         try:
             function = getattr(self, 'cmd_%s' % command)
@@ -629,7 +630,6 @@ class Bot(discord.Client):
                     
             else:
                 await mess.channel.send('You do not have permission to use that command.')
-    
     
     
     
