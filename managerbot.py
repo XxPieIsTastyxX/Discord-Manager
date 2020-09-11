@@ -229,7 +229,7 @@ class Bot(discord.Client):
         return players
     
     def log(self, message):
-        file_append_utf8('log.txt', '<Command Detected>\n[%s] [%s] [%s]\n%s' % (strftime('%D %T'), message.channel.name, message.author.name, message.content))
+        file_append_utf8('mb.log', '\u001b[95m%s \u001b[96m#%s \u001b[93m@%s \u001b[0m%s' % (strftime('%D %T'), message.channel.name, message.author.name, message.content))
     
     def allowed(self, user, command):
         return not (command in list(self.restricted_commands.keys())) or \
