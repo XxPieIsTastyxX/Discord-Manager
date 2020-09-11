@@ -638,6 +638,3 @@ if __name__ == '__main__':
     while t.active:
         t.run(t.config.token)
         asyncio.sleep(60)
-    
-    
-    
