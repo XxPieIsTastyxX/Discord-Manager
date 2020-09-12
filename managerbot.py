@@ -559,6 +559,20 @@ class Bot(discord.Client):
         for r in reactions:
             await mess.add_reaction(r)
         
+    async def on_member_update(self, before, after):
+        if before.nick != after.nick:
+            if not before.nick:
+                m = await self.channel.send('**Nickname change detected**\n\tOld: %s\n\tNew: %s' % (before.name, after.nick))
+            elif not after.nick:
+                m = await self.channel.send('**Nickname change detected**\n\tOld: %s\n\tNew: %s' % (before.nick, after.name))
+            else:
+                m = await self.channel.send('**Nickname change detected**\n\tOld: %s\n\tNew: %s' % (before.nick, after.nick))
+            self.log(m, 94)
+    
+    async def on_user_update(self, before, after):
+        if(before.name != after.name):
+            m = await self.channel.send('**Username change detected**\n\tOld: %s\n\tNew: %s' % (before.name, after.name))
+            self.log(m, 94)
         
     async def on_message(self, mess):
         await self.wait_until_ready()
