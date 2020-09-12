@@ -228,8 +228,8 @@ class Bot(discord.Client):
         
         return players
     
-    def log(self, message):
-        file_append_utf8('log.txt', '<Command Detected>\n[%s] [%s] [%s]\n%s' % (strftime('%D %T'), message.channel.name, message.author.name, message.content))
+    def log(self, message, color=0):
+        file_append_utf8('mb.log', '\u001b[95m%s \u001b[96m#%s \u001b[93m@%s \u001b[%im%s \u001b[0m' % (strftime('%D %T'), message.channel.name, message.author.name, color, message.content))
     
     def allowed(self, user, command):
         return not (command in list(self.restricted_commands.keys())) or \
@@ -299,6 +299,7 @@ class Bot(discord.Client):
                 break
         
         if bad:
+            self.log(mess, 91)
             await mess.channel.send('Message from %s was removed because it contained a banned character combination.' % mess.author.mention)
             await mess.delete()
         
@@ -558,6 +559,20 @@ class Bot(discord.Client):
         for r in reactions:
             await mess.add_reaction(r)
         
+    async def on_member_update(self, before, after):
+        if before.nick != after.nick:
+            if not before.nick:
+                m = await self.channel.send('**Nickname change detected**\n\tOld: %s\n\tNew: %s' % (before.name, after.nick))
+            elif not after.nick:
+                m = await self.channel.send('**Nickname change detected**\n\tOld: %s\n\tNew: %s' % (before.nick, after.name))
+            else:
+                m = await self.channel.send('**Nickname change detected**\n\tOld: %s\n\tNew: %s' % (before.nick, after.nick))
+            self.log(m, 94)
+    
+    async def on_user_update(self, before, after):
+        if(before.name != after.name):
+            m = await self.channel.send('**Username change detected**\n\tOld: %s\n\tNew: %s' % (before.name, after.name))
+            self.log(m, 94)
         
     async def on_message(self, mess):
         await self.wait_until_ready()
@@ -638,6 +653,3 @@ if __name__ == '__main__':
     while t.active:
         t.run(t.config.token)
         asyncio.sleep(60)
-    
-    
-    
