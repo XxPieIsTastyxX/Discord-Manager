@@ -228,8 +228,8 @@ class Bot(discord.Client):
         
         return players
     
-    def log(self, message):
-        file_append_utf8('mb.log', '\u001b[95m%s \u001b[96m#%s \u001b[93m@%s \u001b[0m%s' % (strftime('%D %T'), message.channel.name, message.author.name, message.content))
+    def log(self, message, color=0):
+        file_append_utf8('mb.log', '\u001b[95m%s \u001b[96m#%s \u001b[93m@%s \u001b[%im%s \u001b[0m' % (strftime('%D %T'), message.channel.name, message.author.name, color, message.content))
     
     def allowed(self, user, command):
         return not (command in list(self.restricted_commands.keys())) or \
@@ -299,6 +299,7 @@ class Bot(discord.Client):
                 break
         
         if bad:
+            self.log(mess, 91)
             await mess.channel.send('Message from %s was removed because it contained a banned character combination.' % mess.author.mention)
             await mess.delete()
         
