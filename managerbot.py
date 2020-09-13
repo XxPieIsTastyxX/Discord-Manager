@@ -133,9 +133,7 @@ class Bot(discord.Client):
         print(self.user.id)
         self.channel = self.get_channel(self.config.channel)
         self.invite_channel = self.get_channel(self.config.invites)
-        for s in self.guilds:
-            self.server = s
-            break
+        self.server = self.guilds[0]
         print('Listening on')
         print(self.server.name)
         print(self.channel.name)
@@ -484,30 +482,11 @@ class Bot(discord.Client):
         
         await self.cmd_reload() # don't want to do this but it works
     
-    async def cmd_scrub(self, channel, time):
-        now = datetime.utcnow()
-        time = time.split(':')
-        for i in range(len(time)):
-            time[i] = int(time[i])
-        minute = time[0]
-        if len(time) > 1:
-            hour = time[1]
-            if len(time) > 2:
-                day = time[2]
-                if len(time) > 3:
-                    month = time[3]
-                else:
-                    month = now.month
-            else:
-                day = now.day
-                month = now.month
+    async def cmd_scrub(self, channel, amount):
+        if(amount>100):
+            await channel.send('That is too many messages.')
         else:
-            hour = now.hour
-            day = now.day
-            month = now.month
-            
-        date = datetime(now.year, month, day, hour, minute)
-        await channel.purge(limit=200, after=date)
+            await channel.purge(limit=int(amount)+1)
     
     async def cmd_verify(self, sponsor, name):
         chan = self.channel
