@@ -287,6 +287,22 @@ class Bot(discord.Client):
                     
         return selected
     
+    async def message_response(self, user, text, chan=None):
+        if not chan:
+            chan = self.channel
+        mess = await chan.send(text)
+        
+        def mess_check(message):
+            return message.author == user and message.channel == chan
+        
+        try:
+            answer = await self.wait_for('message', check=mess_check, timeout=30)
+        except:
+            #await mess.delete()
+            raise TimeoutError
+        
+        return answer.content
+    
     async def screen(self, mess):
         text = mess.content.translate(' ')
         
@@ -323,23 +339,14 @@ class Bot(discord.Client):
         Usage: .alias [game]
         '''
         game = self.game_check(game)
-            
         chan = self.channel
         
-        mess = await chan.send('Respond with a list of aliases to use for the %s game group.\nMultiple aliases should be placed on separate lines.' % game)
-        
-        def mess_check(message):
-            return message.author == user and message.channel == chan
-        try:
-            answer = await self.wait_for('message', check=mess_check, timeout=30)
-        except:
-            await mess.delete()
-            raise TimeoutError
+        answer = await self.message_response(user, 'Respond with a list of aliases to use for the %s game group.\nMultiple aliases should be placed on separate lines.' % game)
         
         games = list(self.gameslists.keys())
         aliases = []
         existing = []
-        for al in answer.content.split('\n'):
+        for al in answer.split('\n'):
             a = al.lower()
             if a in aliases:
                 pass
