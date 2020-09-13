@@ -287,6 +287,34 @@ class Bot(discord.Client):
                     
         return selected
     
+    async def get_mentions(self, user, game):
+        chan = self.channel
+        players = self.list_players(game)
+        try:
+            players.remove(user)
+        except:
+            pass
+        
+        selected = []
+        if await self.query(user, await chan.send('Do you want to invite all online players from the %s group?' % game)):
+            for p in players:
+                if str(p.status) == 'online':
+                    selected.append(p)
+            
+        else:
+            selected = await self.multi_query(user, players, 'players to invite')
+        
+        if not len(selected):
+            if await self.query(user, await chan.send('You appear to have not selected any players to invite. (Or they might just be offline)\nTry again?')):
+                return await self.get_mentions(user, game)
+            return []
+        
+        mentions = []
+        for u in selected:
+            mentions.append(u.mention)
+            
+        return mentions
+    
     async def message_response(self, user, text, chan=None):
         if not chan:
             chan = self.channel
@@ -338,7 +366,7 @@ class Bot(discord.Client):
         '''Adds an alias for a game invite group, allowing it to be referred by multiple names
         Usage: .alias [game]
         '''
-        game = self.game_check(game)
+        game = self.game_check(game)          
         chan = self.channel
         
         answer = await self.message_response(user, 'Respond with a list of aliases to use for the %s game group.\nMultiple aliases should be placed on separate lines.' % game)
@@ -413,33 +441,13 @@ class Bot(discord.Client):
         game = self.game_check(game)
         chan = self.channel
         
-        players = self.list_players(game)
-        try:
-            players.remove(user)
-        except:
-            pass
-        
-        selected = []
-        if await self.query(user, await chan.send('Do you want to invite all online players from the %s group?' % game)):
-            for p in players:
-                if str(p.status) == 'online':
-                    selected.append(p)
-            
-        else:
-            selected = await self.multi_query(user, players, 'players to invite')
-        
-        if not len(selected):
-            if await self.query(user, await chan.send('You appear to have not selected any players to invite. (Or they might just be offline)\nTry again?')):
-                await self.cmd_invite(user, game)
+        mentions = await self.get_mentions(user, game)
+        if not len(mentions):
             return
-        
-        mentions = []
-        for u in selected:
-            mentions.append(u.mention)
                         
         if chan != self.invite_channel:
             await chan.send('Broadcasting invites on text channel #%s...' % self.invite_channel.name)
-        await self.invite_channel.send('The following players have been invited by %s to play %s:\n%s.' % (user.name, game, lister(mentions, True))) 
+        await self.invite_channel.send('The following players have been invited by %s to play %s:\n%s.' % (user.name, game, lister(mentions, True)))
     
     async def cmd_leave(self, user, game):
         game = self.game_check(game)
