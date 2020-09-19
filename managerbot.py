@@ -529,7 +529,7 @@ class Bot(discord.Client):
         
         try:
             await self.wait_for('reaction_add', check=reac_check,
-                                timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M'))) % 60) * 60)
+                                timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M')))) * 60)
         except asyncio.TimeoutError:
             pass
         
