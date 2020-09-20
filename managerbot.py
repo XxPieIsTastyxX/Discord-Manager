@@ -133,9 +133,7 @@ class Bot(discord.Client):
         print(self.user.id)
         self.channel = self.get_channel(self.config.channel)
         self.invite_channel = self.get_channel(self.config.invites)
-        for s in self.guilds:
-            self.server = s
-            break
+        self.server = self.guilds[0]
         print('Listening on')
         print(self.server.name)
         print(self.channel.name)
@@ -289,6 +287,50 @@ class Bot(discord.Client):
                     
         return selected
     
+    async def get_mentions(self, user, game):
+        chan = self.channel
+        players = self.list_players(game)
+        try:
+            players.remove(user)
+        except:
+            pass
+        
+        selected = []
+        if await self.query(user, await chan.send('Do you want to invite all online players from the %s group?' % game)):
+            for p in players:
+                if str(p.status) == 'online':
+                    selected.append(p)
+            
+        else:
+            selected = await self.multi_query(user, players, 'players to invite')
+        
+        if not len(selected):
+            if await self.query(user, await chan.send('You appear to have not selected any players to invite. (Or they might just be offline)\nTry again?')):
+                return await self.get_mentions(user, game)
+            return []
+        
+        mentions = []
+        for u in selected:
+            mentions.append(u.mention)
+            
+        return mentions
+    
+    async def message_response(self, user, text, chan=None):
+        if not chan:
+            chan = self.channel
+        mess = await chan.send(text)
+        
+        def mess_check(message):
+            return message.author == user and message.channel == chan
+        
+        try:
+            answer = await self.wait_for('message', check=mess_check, timeout=30)
+        except:
+            #await mess.delete()
+            raise TimeoutError
+        
+        return answer.content
+    
     async def screen(self, mess):
         text = mess.content.translate(' ')
         
@@ -324,24 +366,15 @@ class Bot(discord.Client):
         '''Adds an alias for a game invite group, allowing it to be referred by multiple names
         Usage: .alias [game]
         '''
-        game = self.game_check(game)
-            
+        game = self.game_check(game)          
         chan = self.channel
         
-        mess = await chan.send('Respond with a list of aliases to use for the %s game group.\nMultiple aliases should be placed on separate lines.' % game)
-        
-        def mess_check(message):
-            return message.author == user and message.channel == chan
-        try:
-            answer = await self.wait_for('message', check=mess_check, timeout=30)
-        except:
-            await mess.delete()
-            raise TimeoutError
+        answer = await self.message_response(user, 'Respond with a list of aliases to use for the %s game group.\nMultiple aliases should be placed on separate lines.' % game)
         
         games = list(self.gameslists.keys())
         aliases = []
         existing = []
-        for al in answer.content.split('\n'):
+        for al in answer.split('\n'):
             a = al.lower()
             if a in aliases:
                 pass
@@ -408,33 +441,13 @@ class Bot(discord.Client):
         game = self.game_check(game)
         chan = self.channel
         
-        players = self.list_players(game)
-        try:
-            players.remove(user)
-        except:
-            pass
-        
-        selected = []
-        if await self.query(user, await chan.send('Do you want to invite all online players from the %s group?' % game)):
-            for p in players:
-                if str(p.status) == 'online':
-                    selected.append(p)
-            
-        else:
-            selected = await self.multi_query(user, players, 'players to invite')
-        
-        if not len(selected):
-            if await self.query(user, await chan.send('You appear to have not selected any players to invite. (Or they might just be offline)\nTry again?')):
-                await self.cmd_invite(user, game)
+        mentions = await self.get_mentions(user, game)
+        if not len(mentions):
             return
-        
-        mentions = []
-        for u in selected:
-            mentions.append(u.mention)
                         
         if chan != self.invite_channel:
             await chan.send('Broadcasting invites on text channel #%s...' % self.invite_channel.name)
-        await self.invite_channel.send('The following players have been invited by %s to play %s:\n%s.' % (user.name, game, lister(mentions, True))) 
+        await self.invite_channel.send('The following players have been invited by %s to play %s:\n%s.' % (user.name, game, lister(mentions, True)))
     
     async def cmd_leave(self, user, game):
         game = self.game_check(game)
@@ -484,30 +497,49 @@ class Bot(discord.Client):
         
         await self.cmd_reload() # don't want to do this but it works
     
-    async def cmd_scrub(self, channel, time):
-        now = datetime.utcnow()
-        time = time.split(':')
-        for i in range(len(time)):
-            time[i] = int(time[i])
-        minute = time[0]
-        if len(time) > 1:
-            hour = time[1]
-            if len(time) > 2:
-                day = time[2]
-                if len(time) > 3:
-                    month = time[3]
-                else:
-                    month = now.month
-            else:
-                day = now.day
-                month = now.month
+    async def cmd_schedule(self, user, game):
+        game = self.game_check(game)
+        chan = self.channel
+        
+        time = await self.message_response(user, 'What time would you like to schedule the invite?\nEnter the time as HH:MM in 24-hr format.')
+        
+        def is_valid(time):
+            return len(time) == 5 and time[:2].isnumeric() and time[3:].isnumeric() and time[2] == ':'
+        
+        while not is_valid(time):
+            time = await self.message_response(user, 'That time appears invalid. Here are two examples of proper times: 09:35 and 21:00')
+                
+        await chan.send('**Note that if you select the "all online players" option, it will be based on who is online currently, not at the specified time.**')
+        mentions = await self.get_mentions(user, game)
+        if not len(mentions):
+            return
+        
+        if chan != self.invite_channel:
+            await chan.send('Broadcasting invites on text channel #%s...' % self.invite_channel.name)
+        mess = await self.invite_channel.send('The following players have been invited by %s to play %s at %s\n%s.\nIf you do not want to be included in the follow-up ping, react with \u274c' % (user.name, game, time, lister(mentions, True)))
+        await mess.add_reaction('\u274c')
+
+        def reac_check(reaction, author):
+            if reaction.message.id == mess.id and reaction.emoji == '\u274c':
+                try:
+                    mentions.remove(author.mention)
+                except:
+                    pass
+            return False
+        
+        try:
+            await self.wait_for('reaction_add', check=reac_check,
+                                timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M')))) * 60)
+        except asyncio.TimeoutError:
+            pass
+        
+        await self.invite_channel.send('The following players have been invited by %s to play %s\n%s.' % (user.name, game, lister(mentions, True)))
+    
+    async def cmd_scrub(self, channel, amount):
+        if(amount>100):
+            await channel.send('That is too many messages.')
         else:
-            hour = now.hour
-            day = now.day
-            month = now.month
-            
-        date = datetime(now.year, month, day, hour, minute)
-        await channel.purge(limit=200, after=date)
+            await channel.purge(limit=int(amount)+1)
     
     async def cmd_verify(self, sponsor, name):
         chan = self.channel
