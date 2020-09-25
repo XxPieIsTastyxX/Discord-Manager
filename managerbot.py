@@ -387,9 +387,9 @@ class Bot(discord.Client):
                 file_append('aliases/%s.txt' % game, a)
         
         if aliases:
-            await chan.send('The following aliases were added for the %s game group:\n```%s```' % (game, lister(aliases, _and=True)))
+            await chan.send('The following aliases were added for the %s game group:\n```%s```' % (game, lister(aliases, and_=True)))
         if existing:
-            await chan.send('The following aliases were not added, as they are already in use:\n```%s```' % (game, lister(existing, _and=True)))
+            await chan.send('The following aliases were not added, as they are already in use:\n```%s```' % (game, lister(existing, and_=True)))
     
     async def cmd_channel(self, chan):
         self.channel = chan
@@ -435,7 +435,7 @@ class Bot(discord.Client):
         self.config.games = sorted(self.config.games)
         for g in self.config.games:
             games.append(capital(g))
-        await self.channel.send('Here is the list of game invite groups:\n*(Capitalization is not important)*\n```%s```' % lister(games, _and=True))
+        await self.channel.send('Here is the list of game invite groups:\n*(Capitalization is not important)*\n```%s```' % lister(games, and_=True))
         
     async def cmd_invite(self, user, game):
         game = self.game_check(game)
@@ -473,7 +473,7 @@ class Bot(discord.Client):
         for p in players:
             namelist.append(p.name)
         
-        await self.channel.send('The following users play %s: \n```%s```' % (game, lister(namelist, _and=True)))
+        await self.channel.send('The following users play %s: \n```%s```' % (game, lister(namelist, and_=True)))
     
     async def cmd_roles(self):
         await self.channel.send('Managed Roles:\n```%s```' % self.list_roles())
