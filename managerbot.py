@@ -501,7 +501,7 @@ class Bot(discord.Client):
         game = self.game_check(game)
         chan = self.channel
         
-        time = await self.message_response(user, 'What time would you like to schedule the invite?\nEnter the time as HH:MM in 24-hr format.')
+        time = await self.message_response(user, 'What time would you like to schedule the invite?\nEnter the time as HH:MM')
         
         def is_valid(time):
             return len(time) == 5 and time[:2].isnumeric() and time[3:].isnumeric() and time[2] == ':'
@@ -516,24 +516,26 @@ class Bot(discord.Client):
         
         if chan != self.invite_channel:
             await chan.send('Broadcasting invites on text channel #%s...' % self.invite_channel.name)
-        mess = await self.invite_channel.send('The following players have been invited by %s to play %s at %s\n%s.\nIf you do not want to be included in the follow-up ping, react with \u274c' % (user.name, game, time, lister(mentions, True)))
-        await mess.add_reaction('\u274c')
+        mess = await self.invite_channel.send('The following players have been invited by %s to play %s at %s\n%s.\nFor anyone that wants to be included in the follow-up ping, react with \u2705' % (user.name, game, time, lister(mentions, True)))
+        await mess.add_reaction('\u2705')
 
+        mentions = []
         def reac_check(reaction, author):
-            if reaction.message.id == mess.id and reaction.emoji == '\u274c':
-                try:
-                    mentions.remove(author.mention)
-                except:
-                    pass
+            if reaction.message.id == mess.id and reaction.emoji == '\u2705':
+                if not author.mention in mentions:
+                    mentions.append(author.mention)
             return False
         
+        timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M')))) * 60
+        if int(time[:2]) < 12:
+            timeout = timeout % 43200
         try:
             await self.wait_for('reaction_add', check=reac_check,
                                 timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M')))) * 60)
         except asyncio.TimeoutError:
             pass
         
-        await self.invite_channel.send('The following players have been invited by %s to play %s\n%s.' % (user.name, game, lister(mentions, True)))
+        await self.invite_channel.send('The following players have been invited by %s to play %s\n%s.' % (user.mention, game, lister(mentions, True)))
     
     async def cmd_scrub(self, channel, amount):
         if(amount>100):
