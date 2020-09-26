@@ -514,9 +514,21 @@ class Bot(discord.Client):
         if not len(mentions):
             return
         
+        timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M')))) * 60
+        if int(time[:2]) < 12:
+            if timeout > 43200:
+                timeout = timeout - 43200
+                disptime = '%s p.m.' % time
+            else:
+                disptime = '%s a.m.' % time
+        else:
+            disptime = '%d%s p.m.' % (int(time[:2]) - 12, time[2:])
+        if disptime[0] == '0':
+            disptime = disptime[1:]
+        
         if chan != self.invite_channel:
             await chan.send('Broadcasting invites on text channel #%s...' % self.invite_channel.name)
-        mess = await self.invite_channel.send('The following players have been invited by %s to play %s at %s\n%s.\nFor anyone that wants to be included in the follow-up ping, react with \u2705' % (user.name, game, time, lister(mentions, True)))
+        mess = await self.invite_channel.send('The following players have been invited by %s to play %s at %s\n%s.\nFor anyone that wants to be included in the follow-up ping, react with \u2705' % (user.name, game, disptime, lister(mentions, True)))
         await mess.add_reaction('\u2705')
 
         mentions = []
@@ -526,12 +538,8 @@ class Bot(discord.Client):
                     mentions.append(author.mention)
             return False
         
-        timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M')))) * 60
-        if int(time[:2]) < 12:
-            timeout = timeout % 43200
         try:
-            await self.wait_for('reaction_add', check=reac_check,
-                                timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M')))) * 60)
+            await self.wait_for('reaction_add', check=reac_check, timeout=timeout)
         except asyncio.TimeoutError:
             pass
         
