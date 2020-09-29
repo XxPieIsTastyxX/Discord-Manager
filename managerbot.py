@@ -528,7 +528,7 @@ class Bot(discord.Client):
         
         if chan != self.invite_channel:
             await chan.send('Broadcasting invites on text channel #%s...' % self.invite_channel.name)
-        mess = await self.invite_channel.send('The following players have been invited by %s to play %s at %s\n%s.\nFor anyone that wants to be included in the follow-up ping, react with \u2705' % (user.name, game, disptime, lister(mentions, True)))
+        mess = await self.invite_channel.send('The following players have been invited by %s to play %s at %s\n%s.\nAnyone that wants to be included in the follow-up ping, react with \u2705' % (user.name, game, disptime, lister(mentions, True)))
         await mess.add_reaction('\u2705')
 
         mentions = []
