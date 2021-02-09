@@ -387,9 +387,9 @@ class Bot(discord.Client):
                 file_append('aliases/%s.txt' % game, a)
         
         if aliases:
-            await chan.send('The following aliases were added for the %s game group:\n```%s```' % (game, lister(aliases, _and=True)))
+            await chan.send('The following aliases were added for the %s game group:\n```%s```' % (game, lister(aliases, and_=True)))
         if existing:
-            await chan.send('The following aliases were not added, as they are already in use:\n```%s```' % (game, lister(existing, _and=True)))
+            await chan.send('The following aliases were not added, as they are already in use:\n```%s```' % (game, lister(existing, and_=True)))
     
     async def cmd_channel(self, chan):
         self.channel = chan
@@ -435,7 +435,7 @@ class Bot(discord.Client):
         self.config.games = sorted(self.config.games)
         for g in self.config.games:
             games.append(capital(g))
-        await self.channel.send('Here is the list of game invite groups:\n*(Capitalization is not important)*\n```%s```' % lister(games, _and=True))
+        await self.channel.send('Here is the list of game invite groups:\n*(Capitalization is not important)*\n```%s```' % lister(games, and_=True))
         
     async def cmd_invite(self, user, game):
         game = self.game_check(game)
@@ -473,7 +473,7 @@ class Bot(discord.Client):
         for p in players:
             namelist.append(p.name)
         
-        await self.channel.send('The following users play %s: \n```%s```' % (game, lister(namelist, _and=True)))
+        await self.channel.send('The following users play %s: \n```%s```' % (game, lister(namelist, and_=True)))
     
     async def cmd_roles(self):
         await self.channel.send('Managed Roles:\n```%s```' % self.list_roles())
@@ -501,7 +501,7 @@ class Bot(discord.Client):
         game = self.game_check(game)
         chan = self.channel
         
-        time = await self.message_response(user, 'What time would you like to schedule the invite?\nEnter the time as HH:MM in 24-hr format.')
+        time = await self.message_response(user, 'What time would you like to schedule the invite?\nEnter the time as HH:MM')
         
         def is_valid(time):
             return len(time) == 5 and time[:2].isnumeric() and time[3:].isnumeric() and time[2] == ':'
@@ -514,26 +514,36 @@ class Bot(discord.Client):
         if not len(mentions):
             return
         
+        timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M')))) * 60
+        if int(time[:2]) < 12:
+            if timeout > 43200:
+                timeout = timeout - 43200
+                disptime = '%s p.m.' % time
+            else:
+                disptime = '%s a.m.' % time
+        else:
+            disptime = '%d%s p.m.' % (int(time[:2]) - 12, time[2:])
+        if disptime[0] == '0':
+            disptime = disptime[1:]
+        
         if chan != self.invite_channel:
             await chan.send('Broadcasting invites on text channel #%s...' % self.invite_channel.name)
-        mess = await self.invite_channel.send('The following players have been invited by %s to play %s at %s\n%s.\nIf you do not want to be included in the follow-up ping, react with \u274c' % (user.name, game, time, lister(mentions, True)))
-        await mess.add_reaction('\u274c')
+        mess = await self.invite_channel.send('The following players have been invited by %s to play %s at %s\n%s.\nAnyone that wants to be included in the follow-up ping, react with \u2705' % (user.name, game, disptime, lister(mentions, True)))
+        await mess.add_reaction('\u2705')
 
+        mentions = []
         def reac_check(reaction, author):
-            if reaction.message.id == mess.id and reaction.emoji == '\u274c':
-                try:
-                    mentions.remove(author.mention)
-                except:
-                    pass
+            if reaction.message.id == mess.id and reaction.emoji == '\u2705':
+                if not author.mention in mentions:
+                    mentions.append(author.mention)
             return False
         
         try:
-            await self.wait_for('reaction_add', check=reac_check,
-                                timeout = ((int(time[:2]) - int(strftime('%H'))) % 24 * 60 + (int(time[3:]) - int(strftime('%M')))) * 60)
+            await self.wait_for('reaction_add', check=reac_check, timeout=timeout)
         except asyncio.TimeoutError:
             pass
         
-        await self.invite_channel.send('The following players have been invited by %s to play %s\n%s.' % (user.name, game, lister(mentions, True)))
+        await self.invite_channel.send('The following players have been invited by %s to play %s\n%s.' % (user.mention, game, lister(mentions, True)))
     
     async def cmd_scrub(self, channel, amount):
         if(amount>100):
