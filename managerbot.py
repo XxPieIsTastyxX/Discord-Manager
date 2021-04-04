@@ -78,6 +78,9 @@ class GameError(Exception):
         self.name = name
 class PlayerError(Exception):
     pass
+class CommandError(Exception):
+    def __init(self, text='Command not formatted correctly.'):
+        self.text = text
 
 
 
@@ -109,8 +112,8 @@ class Bot(discord.Client):
         self.config = Config('mb_settings.ini')
         self.active = True
         self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'alias': -2, 'remove': -1, 'reload': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
-        self.external_commands = ['channel', 'scrub', 'vote']
-        self.destruct_commands = ['vote']
+        self.external_commands = ['channel', 'scrub', 'vote', 'when']
+        self.destruct_commands = ['vote', 'when']
         self.channel = None
         self.invite_channel = None
         self.server = None
@@ -588,6 +591,9 @@ class Bot(discord.Client):
                         return
     
     async def cmd_vote(self, chan, number = None):
+        messages = await chan.history(limit=2).flatten()
+        mess = messages[1]
+        
         if number:
             if int(number) > 9:
                 await chan.send('The maximum number of choices is 9.')
@@ -596,10 +602,38 @@ class Bot(discord.Client):
         else:
             reactions = ['\u2705','\u2754','\u274c']
             
-        messages = await chan.history(limit=2).flatten()
-        mess = messages[1]
         for r in reactions:
             await mess.add_reaction(r)
+        
+    async def cmd_when(self, chan, text):
+        messages = await chan.history(limit=2).flatten()
+        mess = messages[1]
+        
+        try:
+            times = [int(n) for pair in [t.split(':') for t in text.split('-')] for n in pair]
+        except:
+            raise CommandError
+        else:
+            def valid_hr(hr):
+                return hr >= 1 and hr <= 12
+            def valid_min(min):
+                return min >= 0 and min < 60 
+            if len(times) != 4 or not (valid_hr(times[0]) and valid_min(times[1]) and valid_hr(times[2]) and valid_min(times[3])):
+                raise CommandError
+        
+        reactions = ['\u1F550','\u1F55C','\u1F551','\u1F55D','\u1F552','\u1F55E','\u1F553','\u1F55F','\u1F554','\u1F560','\u1F555','\u1F561','\u1F556','\u1F562','\u1F557','\u1F563','\u1F558','\u1F564','\u1F559','\u1F565','\u1F55A','\u1F566','\u1F55B','\u1F567']
+        
+        i1 = (times[0] - 1) * 2 + times[1] >= 30;
+        i2 = (times[2] - 1) * 2 + times[3] >= 30;
+        
+        if i1 < i2:
+            for r in reactions[i1:i2]:
+                await mess.add_reaction(r)
+        else:
+            for r in reactions[i1:-1]:
+                await mess.add_reaction(r)
+            for r in reactions[0:i2]:
+                await mess.add_reaction(r)
         
     async def on_member_update(self, before, after):
         if before.nick != after.nick:
@@ -680,6 +714,9 @@ class Bot(discord.Client):
                     
                 except TimeoutError:
                     await mess.channel.send('Request timed out.')
+                    
+                except CommandError as err:
+                    await mess.channel.send(err.text)
                 
                 else:
                     if self.config.delete_commands or command in self.destruct_commands:
