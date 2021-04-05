@@ -200,7 +200,8 @@ class Bot(discord.Client):
             except:
                 continue
             else:
-                highest = temp
+                if(temp > highest):
+                    highest = temp
         return highest    
     
     def list_roles(self, levels=range(0)):
