@@ -102,10 +102,12 @@ class Config:
             self.roles.append(int(rs))
 
 
+intents = discord.Intents.default()
+intents.members = True
 
 class Bot(discord.Client):
     def __init__(self):
-        super().__init__(max_messages=500)
+        super().__init__(max_messages=500, intents=intents)
         self.config = Config('mb_settings.ini')
         self.active = True
         self.restricted_commands = {'channel': -1,'close': -1, 'verify': 1, 'clean': -1, 'add': -2, 'alias': -2, 'remove': -1, 'reload': -1, 'join': 0, 'leave': 0, 'players': 1, 'invite': 1, 'scrub': -1}
